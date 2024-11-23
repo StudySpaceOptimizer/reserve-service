@@ -1,0 +1,14 @@
+{
+  "preset": "psr12",
+  "rules": {
+    "braces": {
+      "position_after_functions_and_oop_constructs": "next"
+    },
+    "method_argument_space": {
+      "on_multiline": "ensure_fully_multiline"
+    },
+    "class_definition": {
+      "single_line": false
+    }
+  }
+}
