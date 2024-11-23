@@ -11,20 +11,58 @@ class ReservationControllerTest extends TestCase
 {
     use RefreshDatabase;
 
+    public function setUp(): void
+    {
+        parent::setUp();
+
+        $fixedNow = Carbon::create(2024, 1, 1, 9, 0, 0);
+        Carbon::setTestNow($fixedNow);
+
+        DB::table('reservations')->insert([
+            [
+                'seat_id' => 1,
+                'begin_time' => Carbon::create(2024, 11, 1, 9, 0, 0),
+                'end_time' => Carbon::create(2024, 11, 1, 10, 0, 0),
+                'user_email' => 'test1@example.com',
+                'created_at' => Carbon::create(2024, 10, 31, 8, 0, 0),
+                'updated_at' => Carbon::create(2024, 10, 31, 8, 0, 0),
+            ],
+            [
+                'seat_id' => 2,
+                'begin_time' => Carbon::create(2024, 11, 2, 11, 0, 0),
+                'end_time' => Carbon::create(2024, 11, 2, 12, 0, 0),
+                'user_email' => 'test2@example.com',
+                'created_at' => Carbon::create(2024, 10, 31, 8, 0, 0),
+                'updated_at' => Carbon::create(2024, 10, 31, 8, 0, 0),
+            ],
+            [
+                'seat_id' => 3,
+                'begin_time' => Carbon::create(2024, 11, 3, 11, 0, 0),
+                'end_time' => Carbon::create(2024, 11, 3, 12, 0, 0),
+                'user_email' => 'test1@example.com',
+                'created_at' => Carbon::create(2024, 10, 31, 8, 0, 0),
+                'updated_at' => Carbon::create(2024, 10, 31, 8, 0, 0),
+            ],
+        ]);
+    }
+
     public function testReserveSuccess()
     {
         $this->withHeaders([
             'X-User-Info' => json_encode(['email' => 'test@example.com']),
         ]);
 
+        $beginTime = Carbon::create(2024, 1, 1, 12, 0, 0);
+        $endTime = $beginTime->copy()->addHour();
+
         $response = $this->postJson('/api/reservations', [
             'seat_id' => 1,
-            'begin_time' => Carbon::now()->addHours(2)->toISOString(),
-            'end_time' => Carbon::now()->addHours(3)->toISOString(),
+            'begin_time' => $beginTime->toISOString(),
+            'end_time' => $endTime->toISOString(),
         ]);
 
         $response->assertStatus(201)
-                 ->assertJson(['message' => 'Reservation successful']);
+            ->assertJson(['message' => 'Reservation successful']);
     }
 
     public function testReserveOutsideBusinessHours()
@@ -40,7 +78,7 @@ class ReservationControllerTest extends TestCase
         ]);
 
         $response->assertStatus(400)
-                 ->assertJson(['error' => 'Reservation time is outside business hours']);
+            ->assertJson(['error' => 'Reservation time is outside business hours']);
     }
 
     public function testReserveInPast()
@@ -49,14 +87,36 @@ class ReservationControllerTest extends TestCase
             'X-User-Info' => json_encode(['email' => 'test@example.com']),
         ]);
 
+        $beginTime = Carbon::create(2024, 1, 1, 9, 0, 0);
+        $endTime = $beginTime->copy()->addHour();
+
         $response = $this->postJson('/api/reservations', [
             'seat_id' => 1,
-            'begin_time' => Carbon::now()->subHours(2)->toISOString(),
-            'end_time' => Carbon::now()->subHours(1)->toISOString(),
+            'begin_time' => $beginTime->toISOString(),
+            'end_time' => $endTime->toISOString(),
         ]);
 
         $response->assertStatus(400)
-                 ->assertJson(['error' => 'Reservation time must be in the future']);
+            ->assertJson(['error' => 'Reservation time must be in the future']);
+    }
+
+    public function testReserveDifferentDay()
+    {
+        $this->withHeaders([
+            'X-User-Info' => json_encode(['email' => 'test@example.com']),
+        ]);
+
+        $beginTime = Carbon::create(2024, 1, 1, 11, 0, 0);
+        $endTime = $beginTime->copy()->addDay();
+
+        $response = $this->postJson('/api/reservations', [
+            'seat_id' => 1,
+            'begin_time' => $beginTime->toISOString(),
+            'end_time' => $endTime->toISOString(),
+        ]);
+
+        $response->assertStatus(400)
+            ->assertJson(['error' => 'Begin and end time must be on the same day']);
     }
 
     public function testReserveSameDayConstraint()
@@ -65,7 +125,7 @@ class ReservationControllerTest extends TestCase
             'X-User-Info' => json_encode(['email' => 'test@example.com']),
         ]);
 
-        $beginTime = Carbon::now()->addHours(2);
+        $beginTime = Carbon::create(2024, 1, 1, 11, 0, 0);
         $endTime = $beginTime->copy()->addHour();
 
         DB::table('reservations')->insert([
@@ -79,12 +139,12 @@ class ReservationControllerTest extends TestCase
 
         $response = $this->postJson('/api/reservations', [
             'seat_id' => 1,
-            'begin_time' => Carbon::now()->addHours(4)->toISOString(),
-            'end_time' => Carbon::now()->addHours(5)->toISOString(),
+            'begin_time' => $beginTime->addHours(3)->toISOString(),
+            'end_time' => $endTime->addHours(4)->toISOString(),
         ]);
 
         $response->assertStatus(400)
-                 ->assertJson(['error' => 'You can only make one reservation per day']);
+            ->assertJson(['error' => 'You can only make one reservation per day']);
     }
 
     public function testReserveSeatConflict()
@@ -114,6 +174,114 @@ class ReservationControllerTest extends TestCase
         ]);
 
         $response->assertStatus(400)
-                 ->assertJson(['error' => 'Seat is already reserved during this time']);
+            ->assertJson(['error' => 'Seat is already reserved during this time']);
+    }
+
+    public function testGetReservations()
+    {
+        $response = $this->getJson('/api/reservations?pageSize=1&pageOffset=0');
+
+        $response->assertStatus(200)
+            ->assertJsonStructure([
+                'total',
+                'data' => [
+                    [
+                        'reservationId',
+                        'seatId',
+                        'beginTime',
+                        'endTime',
+                        'userEmail',
+                    ],
+                ],
+            ])
+            ->assertJsonFragment([
+                'reservationId' => 1,
+                'seatId' => 1,
+                'beginTime' => '2024-11-01 09:00:00',
+                'endTime' => '2024-11-01 10:00:00',
+                'userEmail' => 'test1@example.com',
+            ]);
+    }
+
+    public function testGetMyReservations()
+    {
+        // 模擬帶有 X-User-Info 的請求
+        $this->withHeaders([
+            'X-User-Info' => json_encode(['email' => 'test1@example.com']),
+        ]);
+
+        $response = $this->getJson('/api/reservations/me?pageSize=10&pageOffset=0');
+        $response->assertStatus(200)
+            ->assertJsonFragment([
+                'reservationId' => 1,
+                'seatId' => 1,
+                'beginTime' => '2024-11-01 09:00:00',
+                'endTime' => '2024-11-01 10:00:00',
+            ])
+            ->assertJsonMissing([
+                'reservationId' => 2,
+            ]);
+    }
+
+    public function testDeleteReservationSuccess()
+    {
+        // 建立測試資料
+        $reservation = DB::table('reservations')->insertGetId([
+            'begin_time' => now()->addHour(),
+            'end_time' => now()->addHours(2),
+            'user_email' => 'test@example.com',
+            'seat_id' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withHeader('X-User-Info', json_encode(['email' => 'test@example.com']))
+            ->delete("/api/reservations/{$reservation}");
+
+        $response->assertStatus(204);
+        $this->assertDatabaseMissing('reservations', ['id' => $reservation]);
+    }
+
+    public function testDeleteReservationAdminSucess()
+    {
+        $reservation = DB::table('reservations')->insertGetId([
+            'begin_time' => now()->addHour(),
+            'end_time' => now()->addHours(2),
+            'user_email' => 'test@example.com',
+            'seat_id' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->withHeaders(['X-User-Info' => json_encode(['email' => 'admin@example.com', 'role' => 'admin']),])
+            ->delete("/api/reservations/{$reservation}");
+
+        $this->assertDatabaseMissing('reservations', ['id' => $reservation]);
+    }
+
+    public function testDeleteReservationUnauthorized()
+    {
+        // 建立測試資料
+        $reservation = DB::table('reservations')->insertGetId([
+            'begin_time' => now()->addHour(),
+            'end_time' => now()->addHours(2),
+            'user_email' => 'otheruser@example.com',
+            'seat_id' => 1,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->withHeader('X-User-Info', json_encode(['email' => 'test@example.com']))
+            ->delete("/api/reservations/{$reservation}");
+
+        $response->assertStatus(403);
+    }
+
+    public function testDeleteReservationNotFound()
+    {
+        $response = $this->withHeader('X-User-Info', json_encode(['email' => 'test@example.com']))
+            ->delete("/api/reservations/99999");
+
+        $response->assertStatus(404);
     }
 }

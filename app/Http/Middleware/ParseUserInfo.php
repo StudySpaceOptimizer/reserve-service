@@ -15,7 +15,12 @@ class ParseUserInfo
             $userInfo = json_decode($userInfoHeader, true);
 
             if (json_last_error() === JSON_ERROR_NONE && isset($userInfo['email'])) {
-                $request->merge(['user' => ['email' => $userInfo['email']]]);
+                $request->merge([
+                    'user' => [
+                        'email' => $userInfo['email'],
+                        'role' => $userInfo['role'] ?? 'user',
+                    ],
+                ]);
             } else {
                 return response()->json(['error' => 'Invalid X-User-Info header format'], 400);
             }

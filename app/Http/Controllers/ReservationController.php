@@ -8,6 +8,30 @@ use Carbon\Carbon;
 
 class ReservationController extends Controller
 {
+    private function checkReservationTime($beginTime, $endTime)
+    {
+        $now = Carbon::now();
+
+        $openingTime = Carbon::createFromTime(9, 0);
+        $closingTime = Carbon::createFromTime(21, 0);
+        $beginTimeWithoutDate = Carbon::createFromTime($beginTime->hour, $beginTime->minute);
+        $closingTimeWithoutDate = Carbon::createFromTime($closingTime->hour, $closingTime->minute);
+
+        if ($beginTimeWithoutDate->lt($openingTime) || $closingTimeWithoutDate->gt($closingTime)) {
+            return 'Reservation time is outside business hours';
+        }
+
+        if ($beginTime->lte($now) || $endTime->lte($now)) {
+            return 'Reservation time must be in the future';
+        }
+
+        if (!$beginTime->isSameDay($endTime)) {
+            return 'Begin and end time must be on the same day';
+        }
+
+        return null;
+    }
+
     public function reserve(Request $request)
     {
         $request->validate([
@@ -20,37 +44,20 @@ class ReservationController extends Controller
         $beginTime = Carbon::parse($request->input('begin_time'));
         $endTime = Carbon::parse($request->input('end_time'));
 
-        $now = Carbon::now();
-
-        // 假設營業時間
-        $openingTime = Carbon::createFromTime(9, 0, 0);
-        $closingTime = Carbon::createFromTime(21, 0, 0);
-
-        // 1. 檢查預約時間是否在營業時間內
-        if ($beginTime->lt($openingTime) || $endTime->gt($closingTime)) {
-            return response()->json(['error' => 'Reservation time is outside business hours'], 400);
+        $error = $this->checkReservationTime($beginTime, $endTime);
+        if ($error) {
+            return response()->json(['error' => $error], 400);
         }
 
-        // 2. 檢查預約時間是否大於現在時間
-        if ($beginTime->lte($now) || $endTime->lte($now)) {
-            return response()->json(['error' => 'Reservation time must be in the future'], 400);
-        }
-
-        // 3. 檢查開始和結束時間是否在同一天
-        if (!$beginTime->isSameDay($endTime)) {
-            return response()->json(['error' => 'Begin and end time must be on the same day'], 400);
-        }
-
-        // 4. 檢查該座位是否在該時間段已被預約
         $conflictingReservations = DB::table('reservations')
             ->where('seat_id', $seatId)
             ->where(function ($query) use ($beginTime, $endTime) {
                 $query->whereBetween('begin_time', [$beginTime, $endTime])
-                      ->orWhereBetween('end_time', [$beginTime, $endTime])
-                      ->orWhere(function ($query) use ($beginTime, $endTime) {
-                          $query->where('begin_time', '<=', $beginTime)
-                                ->where('end_time', '>=', $endTime);
-                      });
+                    ->orWhereBetween('end_time', [$beginTime, $endTime])
+                    ->orWhere(function ($query) use ($beginTime, $endTime) {
+                        $query->where('begin_time', '<=', $beginTime)
+                            ->where('end_time', '>=', $endTime);
+                    });
             })
             ->exists();
 
@@ -58,7 +65,6 @@ class ReservationController extends Controller
             return response()->json(['error' => 'Seat is already reserved during this time'], 400);
         }
 
-        // 5. 檢查用戶當天是否已有預約
         $userEmail = $request->input('user.email');
         $userReservations = DB::table('reservations')
             ->where('user_email', $userEmail)
@@ -69,7 +75,6 @@ class ReservationController extends Controller
             return response()->json(['error' => 'You can only make one reservation per day'], 400);
         }
 
-        // 創建預約
         $reservationId = DB::table('reservations')->insertGetId([
             'seat_id' => $seatId,
             'begin_time' => $beginTime,
@@ -78,5 +83,82 @@ class ReservationController extends Controller
         ]);
 
         return response()->json(['message' => 'Reservation successful', 'id' => $reservationId], 201);
+    }
+
+    public function getReservations(Request $request)
+    {
+        $request->validate([
+            'pageSize' => 'integer|min:1|max:100',
+            'pageOffset' => 'integer|min:0',
+        ]);
+
+        $pageSize = $request->query('pageSize', 10);
+        $pageOffset = $request->query('pageOffset', 0);
+
+        $total = DB::table('reservations')->count();
+
+        $reservations = DB::table('reservations')
+            ->orderBy('begin_time', 'asc')
+            ->offset($pageOffset)
+            ->limit($pageSize)
+            ->get([
+                'id as reservationId',
+                'seat_id as seatId',
+                'begin_time as beginTime',
+                'end_time as endTime',
+                'user_email as userEmail'
+            ]);
+
+        return response()->json([
+            'total' => $total,
+            'data' => $reservations,
+        ]);
+    }
+
+    public function getMyReservations(Request $request)
+    {
+        $userEmail = $request->input('user.email');
+
+        $request->validate([
+            'pageSize' => 'integer|min:1|max:100',
+            'pageOffset' => 'integer|min:0',
+        ]);
+
+        $pageSize = $request->query('pageSize', 10);
+        $pageOffset = $request->query('pageOffset', 0);
+
+        $query = DB::table('reservations')
+            ->where('user_email', $userEmail);
+
+        $total = $query->count();
+
+        $myReservations = $query->clone()
+            ->orderBy('begin_time', 'asc')
+            ->offset($pageOffset)
+            ->limit($pageSize)
+            ->get(['id as reservationId', 'seat_id as seatId', 'begin_time as beginTime', 'end_time as endTime']);
+
+        return response()->json([
+            'total' => $total,
+            'data' => $myReservations,
+        ]);
+    }
+
+    public function deleteReservation(Request $request, $id)
+    {
+        $userEmail = $request->input('user.email');
+        $userRole = $request->input('user.role');
+        $reservation = DB::table('reservations')->where('id', $id)->first();
+
+        if (!$reservation) {
+            return response()->json(['error' => 'Reservation not found'], 404);
+        }
+
+        if ($reservation->user_email !== $userEmail and $userRole !== 'admin') {
+            return response()->json(['error' => 'You are not authorized to delete this reservation'], 403);
+        }
+
+        DB::table('reservations')->where('id', $id)->delete();
+        return response()->json(['message' => 'Reservation deleted successfully'], 204);
     }
 }
