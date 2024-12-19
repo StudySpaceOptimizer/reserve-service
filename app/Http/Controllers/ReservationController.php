@@ -80,6 +80,7 @@ class ReservationController extends Controller
         $userReservations = DB::table('reservations')
             ->where('user_email', $userEmail)
             ->whereDate('begin_time', $beginTime->toDateString())
+            ->where('end_time', '>', $beginTime)
             ->exists();
 
         if ($userReservations) {

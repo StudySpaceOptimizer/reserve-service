@@ -131,6 +131,35 @@ class ReservationControllerTest extends TestCase
         ]);
 
         $beginTime = Carbon::create(2024, 1, 1, 1, 0, 0);
+        $endTime = $beginTime->copy()->addHours(5);
+
+        DB::table('reservations')->insert([
+            'seat_id' => 1,
+            'begin_time' => $beginTime,
+            'end_time' => $endTime,
+            'user_email' => 'test@example.com',
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $response = $this->postJson('/api/reservations', [
+            'seat_code' => 'B02',
+            'begin_time' => $beginTime->addHours(3)->toISOString(),
+            'end_time' => $endTime->addHours(4)->toISOString(),
+        ]);
+
+        $response->assertStatus(400)
+            ->assertJson(['error' => 'You can only make one reservation per day']);
+    }
+
+    public function testReserveSameDayConstraintSuccess()
+    {
+        $this->withHeaders([
+            'X-User-Email' => 'test@example.com',
+            'X-User-Role' => 'user',
+        ]);
+
+        $beginTime = Carbon::create(2024, 1, 1, 1, 0, 0);
         $endTime = $beginTime->copy()->addHour();
 
         DB::table('reservations')->insert([
@@ -148,8 +177,8 @@ class ReservationControllerTest extends TestCase
             'end_time' => $endTime->addHours(4)->toISOString(),
         ]);
 
-        $response->assertStatus(400)
-            ->assertJson(['error' => 'You can only make one reservation per day']);
+        $response->assertStatus(201)
+            ->assertJson(['message' => 'Reservation successful']);
     }
 
     public function testReserveSeatConflict()
