@@ -15,7 +15,7 @@ return new class() extends Migration {
             $table->timestamp('begin_time');
             $table->timestamp('end_time');
             $table->string('user_email');
-            $table->integer('seat_id');
+            $table->string('seat_code');
             $table->timestamps();
         });
     }

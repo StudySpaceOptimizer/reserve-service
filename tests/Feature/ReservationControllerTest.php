@@ -20,7 +20,7 @@ class ReservationControllerTest extends TestCase
 
         DB::table('reservations')->insert([
             [
-                'seat_id' => 1,
+                'seat_code' => 'B01',
                 'begin_time' => Carbon::create(2024, 11, 1, 9, 0, 0),
                 'end_time' => Carbon::create(2024, 11, 1, 10, 0, 0),
                 'user_email' => 'test1@example.com',
@@ -28,7 +28,7 @@ class ReservationControllerTest extends TestCase
                 'updated_at' => Carbon::create(2024, 10, 31, 8, 0, 0),
             ],
             [
-                'seat_id' => 2,
+                'seat_code' => 'B02',
                 'begin_time' => Carbon::create(2024, 11, 2, 11, 0, 0),
                 'end_time' => Carbon::create(2024, 11, 2, 12, 0, 0),
                 'user_email' => 'test2@example.com',
@@ -36,7 +36,7 @@ class ReservationControllerTest extends TestCase
                 'updated_at' => Carbon::create(2024, 10, 31, 8, 0, 0),
             ],
             [
-                'seat_id' => 3,
+                'seat_code' => 'B03',
                 'begin_time' => Carbon::create(2024, 11, 3, 11, 0, 0),
                 'end_time' => Carbon::create(2024, 11, 3, 12, 0, 0),
                 'user_email' => 'test1@example.com',
@@ -134,7 +134,7 @@ class ReservationControllerTest extends TestCase
         $endTime = $beginTime->copy()->addHours(5);
 
         DB::table('reservations')->insert([
-            'seat_id' => 1,
+            'seat_code' => 'B01',
             'begin_time' => $beginTime,
             'end_time' => $endTime,
             'user_email' => 'test@example.com',
@@ -163,7 +163,7 @@ class ReservationControllerTest extends TestCase
         $endTime = $beginTime->copy()->addHour();
 
         DB::table('reservations')->insert([
-            'seat_id' => 1,
+            'seat_code' => 'B01',
             'begin_time' => $beginTime,
             'end_time' => $endTime,
             'user_email' => 'test@example.com',
@@ -193,7 +193,7 @@ class ReservationControllerTest extends TestCase
 
         // 插入一個與目標時間段衝突的預約
         DB::table('reservations')->insert([
-            'seat_id' => 1,
+            'seat_code' => 'B01',
             'begin_time' => $beginTime,
             'end_time' => $endTime,
             'user_email' => 'other@example.com',
@@ -222,7 +222,7 @@ class ReservationControllerTest extends TestCase
                 'data' => [
                     [
                         'reservationId',
-                        'seatId',
+                        'seatCode',
                         'beginTime',
                         'endTime',
                         'userEmail',
@@ -231,7 +231,7 @@ class ReservationControllerTest extends TestCase
             ])
             ->assertJsonFragment([
                 'reservationId' => 1,
-                'seatId' => 1,
+                'seatCode' => 'B01',
                 'beginTime' => '2024-11-01 09:00:00',
                 'endTime' => '2024-11-01 10:00:00',
                 'userEmail' => 'test1@example.com',
@@ -250,7 +250,7 @@ class ReservationControllerTest extends TestCase
         $response->assertStatus(200)
             ->assertJsonFragment([
                 'reservationId' => 1,
-                'seatId' => 1,
+                'seatCode' => 'B01',
                 'beginTime' => '2024-11-01 09:00:00',
                 'endTime' => '2024-11-01 10:00:00',
             ])
@@ -271,7 +271,7 @@ class ReservationControllerTest extends TestCase
             'begin_time' => now()->addHour(),
             'end_time' => now()->addHours(2),
             'user_email' => 'test@example.com',
-            'seat_id' => 1,
+            'seat_code' => 'B01',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -293,7 +293,7 @@ class ReservationControllerTest extends TestCase
             'begin_time' => now()->addHour(),
             'end_time' => now()->addHours(2),
             'user_email' => 'test@example.com',
-            'seat_id' => 1,
+            'seat_code' => 'B01',
             'created_at' => now(),
             'updated_at' => now(),
         ]);
@@ -315,7 +315,7 @@ class ReservationControllerTest extends TestCase
             'begin_time' => now()->addHour(),
             'end_time' => now()->addHours(2),
             'user_email' => 'otheruser@example.com',
-            'seat_id' => 1,
+            'seat_code' => 'B01',
             'created_at' => now(),
             'updated_at' => now(),
         ]);

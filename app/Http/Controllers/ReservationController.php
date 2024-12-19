@@ -52,16 +52,16 @@ class ReservationController extends Controller
 
         // TODO: Check if seat available and optimize this query
         // $seatId = DB::table('seats')->where('code', $seatCode)->value('id');
-        if (preg_match('/^A(\d{1,3})$/', $seatCode, $matches)) {
-            $seatId = 140 + intval($matches[1]) - 1;
-        } elseif (preg_match('/^B(\d{1,3})$/', $seatCode, $matches)) {
-            $seatId = intval($matches[1]);
-        } else {
-            return response()->json(['error' => 'Invalid seat code'], 400);
-        }
+        // if (preg_match('/^A(\d{1,3})$/', $seatCode, $matches)) {
+        //     $seatId = 140 + intval($matches[1]) - 1;
+        // } elseif (preg_match('/^B(\d{1,3})$/', $seatCode, $matches)) {
+        //     $seatId = intval($matches[1]);
+        // } else {
+        //     return response()->json(['error' => 'Invalid seat code'], 400);
+        // }
 
         $conflictingReservations = DB::table('reservations')
-            ->where('seat_id', $seatId)
+            ->where('seat_code', $seatCode)
             ->where(function ($query) use ($beginTime, $endTime) {
                 $query->whereBetween('begin_time', [$beginTime, $endTime])
                     ->orWhereBetween('end_time', [$beginTime, $endTime])
@@ -88,7 +88,7 @@ class ReservationController extends Controller
         }
 
         $reservationId = DB::table('reservations')->insertGetId([
-            'seat_id' => $seatId,
+            'seat_code' => $seatCode,
             'begin_time' => $beginTime,
             'end_time' => $endTime,
             'user_email' => $userEmail,
@@ -115,7 +115,7 @@ class ReservationController extends Controller
             ->limit($pageSize)
             ->get([
                 'id as reservationId',
-                'seat_id as seatId',
+                'seat_code as seatCode',
                 'begin_time as beginTime',
                 'end_time as endTime',
                 'user_email as userEmail'
@@ -148,7 +148,7 @@ class ReservationController extends Controller
             ->orderBy('begin_time', 'asc')
             ->offset($pageOffset)
             ->limit($pageSize)
-            ->get(['id as reservationId', 'seat_id as seatId', 'begin_time as beginTime', 'end_time as endTime']);
+            ->get(['id as reservationId', 'seat_code as seatCode', 'begin_time as beginTime', 'end_time as endTime']);
 
         return response()->json([
             'total' => $total,
